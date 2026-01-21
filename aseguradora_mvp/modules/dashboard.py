@@ -16,23 +16,43 @@ def render(df: pd.DataFrame):
     ventana = st.selectbox("Ventana de Renovación", ["<= 30 días", "<= 15 días", "<= 7 días"], key="ventana_renov")
     limite = 30 if ventana == "<= 30 días" else 15 if ventana == "<= 15 días" else 7
     
-    # Filtrar renovaciones
+    # Filtrar renovaciones (dentro de la ventana)
     view_renov = df.copy()
     view_renov = view_renov[
         (view_renov["dias_para_vencimiento"].fillna(9999) <= limite) &
         (view_renov["renovable"].astype(str).str.lower().isin(["true","1","si","sí","yes"]) | view_renov["renovable"].isna())
     ]
     
+    # Contar registros excluidos de la ventana (para agregar como "verde")
+    view_excluidos = df.copy()
+    view_excluidos = view_excluidos[
+        (view_excluidos["dias_para_vencimiento"].fillna(9999) > limite) &
+        (view_excluidos["renovable"].astype(str).str.lower().isin(["true","1","si","sí","yes"]) | view_excluidos["renovable"].isna())
+    ]
+    cantidad_excluidos = len(view_excluidos)
+    
     # Visualización: Funnel por Semáforo
     if "semáforo_vencimiento" in view_renov.columns:
         semaforo_counts = view_renov["semáforo_vencimiento"].value_counts().sort_index()
         
         df_semaforo = None
-        if len(semaforo_counts) > 0:
-            df_semaforo = pd.DataFrame({
-                "Semáforo": semaforo_counts.index,
-                "Cantidad": semaforo_counts.values
-            })
+        if len(semaforo_counts) > 0 or cantidad_excluidos > 0:
+            # Crear DataFrame con los semáforos de la ventana
+            if len(semaforo_counts) > 0:
+                df_semaforo = pd.DataFrame({
+                    "Semáforo": semaforo_counts.index,
+                    "Cantidad": semaforo_counts.values
+                })
+            else:
+                df_semaforo = pd.DataFrame(columns=["Semáforo", "Cantidad"])
+            
+            # Agregar categoría "verde" con los excluidos
+            if cantidad_excluidos > 0:
+                nueva_fila = pd.DataFrame({
+                    "Semáforo": ["Verde"],
+                    "Cantidad": [cantidad_excluidos]
+                })
+                df_semaforo = pd.concat([df_semaforo, nueva_fila], ignore_index=True)
             
             def orden_urgencia(sem):
                 sem_str = str(sem).lower()
@@ -88,7 +108,8 @@ def render(df: pd.DataFrame):
                 st.info("No hay datos de semáforo disponibles")
         
         with col2:
-            total_renov = len(view_renov)
+            # Total incluye tanto los de la ventana como los excluidos
+            total_renov = len(view_renov) + cantidad_excluidos
             st.metric("Total a Renovar", total_renov)
             
             if df_semaforo is not None and len(df_semaforo) > 0:
@@ -132,13 +153,11 @@ def render(df: pd.DataFrame):
     total_clientes = len(view_cartera)
     monto_total_mora = view_cartera["valor_en_mora"].fillna(0).sum()
     monto_promedio_mora = view_cartera["valor_en_mora"].fillna(0).mean() if total_clientes > 0 else 0
-    monto_mediano_mora = view_cartera["valor_en_mora"].fillna(0).median() if total_clientes > 0 else 0
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Total Clientes", f"{total_clientes:,}")
     col2.metric("Monto Total", f"${monto_total_mora:,.0f}")
     col3.metric("Promedio", f"${monto_promedio_mora:,.0f}")
-    col4.metric("Mediana", f"${monto_mediano_mora:,.0f}")
     
     # Gráficas
     if total_clientes > 0:
