@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-from modules import login, clientes, renovaciones, cartera
+from modules import login, clientes, renovaciones, cartera, trazabilidad, dashboard
 
 DATA_PATH = "sabana_cartera_renovaciones_200cols.csv"  # ajusta en tu proyecto
 BASE_PAGOS = "https://optimoconsultores.com/pagos/"    # placeholder MVP
@@ -58,8 +58,22 @@ def sidebar():
         st.sidebar.caption(f"👤 {st.session_state['user']} | Rol: {st.session_state['role']}")
         st.sidebar.divider()
 
-        page = st.sidebar.radio("Módulos", ["Clientes", "Renovaciones", "Cartera"])
-        st.session_state["page"] = page.lower()
+        page = st.sidebar.radio("Módulos", [
+            "1. Clientes",
+            "2. Tablero de Visualización",
+            "3. Renovaciones",
+            "4. Cartera",
+            "5. Trazabilidad"
+        ])
+        # Mapear nombres en español a claves internas
+        page_map = {
+            "1. Clientes": "clientes",
+            "2. Tablero de Visualización": "dashboard",
+            "3. Renovaciones": "renovaciones",
+            "4. Cartera": "cartera",
+            "5. Trazabilidad": "trazabilidad"
+        }
+        st.session_state["page"] = page_map.get(page, page.lower())
 
         st.sidebar.button("Cerrar sesión", on_click=logout)
     else:
@@ -70,12 +84,16 @@ def router():
 
     if st.session_state["page"] == "login":
         login.render()
+    elif st.session_state["page"] == "dashboard":
+        dashboard.render(df)
     elif st.session_state["page"] == "clientes":
         clientes.render(df)
     elif st.session_state["page"] == "renovaciones":
         renovaciones.render(df)
     elif st.session_state["page"] == "cartera":
         cartera.render(df)
+    elif st.session_state["page"] == "trazabilidad":
+        trazabilidad.render(df)
     else:
         login.render()
 
